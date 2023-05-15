@@ -2,12 +2,13 @@ package com.coherent.reservations.repository;
 
 import com.coherent.reservations.model.Reservation;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import java.io.IOException;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -18,11 +19,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
-
 @Repository
 public class ReservationRepositoryImpl implements ReservationRepository {
 
-    private static final URI TEXT_FILENAME = URI.create("../db.json");
+    private static Logger logger = LoggerFactory.getLogger(ReservationRepositoryImpl.class);
+
+    private static final String TEXT_FILENAME = "../db.json";
     private final Set<Reservation> repository;
 
     public ReservationRepositoryImpl() {
@@ -50,5 +52,33 @@ public class ReservationRepositoryImpl implements ReservationRepository {
             return true;
         }
         return false;
+    }
+
+    @PostConstruct
+    private void postConstruct() {
+        try {
+            Path path = Paths.get(TEXT_FILENAME);
+            if (Files.exists(path)) {
+                String str = Files.readString(path);
+                ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+                repository.addAll(Arrays.asList(mapper.readValue(str, Reservation[].class)));
+            }
+        } catch (Exception e){
+            logger.error(e.toString());
+        }
+    }
+
+    @PreDestroy
+    public void preDestroy() {
+        try {
+            Path filePath = Paths.get(TEXT_FILENAME);
+            Files.deleteIfExists(filePath);
+            Files.createFile(filePath);
+            ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+            String jsonRepo = mapper.writeValueAsString(repository);
+            Files.writeString(filePath, jsonRepo, StandardOpenOption.WRITE);
+        } catch (Exception e){
+            logger.error(e.toString());
+        }
     }
 }
